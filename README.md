@@ -1,7 +1,17 @@
-# Quick Timer for Android
+# مؤقت التصوير | Android
 
-A lightweight Arabic-first countdown timer for Android 8.0+ with an audible alarm, pause/resume, and a persistent countdown using Android alarms.
+تطبيق Android Native بواجهة عربية احترافية لعدّ تنازلي واضح وسريع.
+
+## المزايا
+- إدخال الوقت بالساعات والدقائق والثواني.
+- اختصارات 1 و5 و10 و15 و30 و60 دقيقة.
+- تشغيل واستكمال وإيقاف مؤقت وإعادة ضبط.
+- حلقة تقدم دائرية متحركة.
+- جرس تنبيه متكرر يستمر حتى إيقافه يدويًا من التطبيق أو إشعار أندرويد.
+- جدولة التنبيه عبر AlarmManager للعمل بعد مغادرة التطبيق وقفل الشاشة.
+- دعم صلاحية التنبيهات الدقيقة وإشعارات Android 13+.
+- مظهر فاتح ومظلم.
+- يدعم Android 6.0 (API 23) وما بعده.
 
 ## Build
-
-Push to `main` to trigger the GitHub Actions Android APK build. The debug APK is uploaded as a workflow artifact.
+يتم بناء APK عبر GitHub Actions عند كل تحديث لفرع main. ملف APK يظهر ضمن Artifacts في صفحة Actions.
