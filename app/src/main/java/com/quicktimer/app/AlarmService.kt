@@ -12,6 +12,7 @@ import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.net.Uri
 import android.content.Context
 import android.content.pm.ServiceInfo
 
@@ -121,25 +122,37 @@ class AlarmService : Service() {
 
     private fun startAlarmSound() {
         if (player?.isPlaying == true) return
-        try {
-            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                ?: return
-            val media = MediaPlayer()
-            media.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            media.isLooping = true
-            media.setVolume(1f, 1f)
-            media.setDataSource(this, alarmUri)
-            media.prepare()
-            media.start()
-            player = media
-        } catch (_: Exception) {
-            releasePlayer()
+
+        val savedUri = getSharedPreferences("timer", Context.MODE_PRIVATE)
+            .getString("alarmSoundUri", null)
+            ?.let { Uri.parse(it) }
+        val defaultAlarm = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        val defaultNotification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val candidates = listOfNotNull(savedUri, defaultAlarm, defaultNotification).distinct()
+
+        for (soundUri in candidates) {
+            var media: MediaPlayer? = null
+            try {
+                media = MediaPlayer()
+                media.setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                media.isLooping = true
+                media.setVolume(1f, 1f)
+                media.setDataSource(this, soundUri)
+                media.prepare()
+                media.start()
+                player = media
+                return
+            } catch (_: Exception) {
+                try {
+                    media?.release()
+                } catch (_: Exception) {
+                }
+            }
         }
     }
 
