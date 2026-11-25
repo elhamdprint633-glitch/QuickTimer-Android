@@ -9,9 +9,14 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.media.VolumeProvider
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.view.KeyEvent
+import java.io.File
 import android.net.Uri
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -19,6 +24,7 @@ import android.content.pm.ServiceInfo
 class AlarmService : Service() {
     private var player: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -121,43 +127,113 @@ class AlarmService : Service() {
     }
 
     private fun startAlarmSound() {
+        activateVolumeKeyStopper()
         if (player?.isPlaying == true) return
 
-        val savedUri = getSharedPreferences("timer", Context.MODE_PRIVATE)
-            .getString("alarmSoundUri", null)
-            ?.let { Uri.parse(it) }
+        val timerPrefs = getSharedPreferences("timer", Context.MODE_PRIVATE)
+        val customPath = timerPrefs.getString("alarmSoundPath", null)
+        if (!customPath.isNullOrBlank() && File(customPath).isFile && tryPlaySound(customPath, null)) {
+            return
+        }
+
+        val savedUri = timerPrefs.getString("alarmSoundUri", null)?.let { Uri.parse(it) }
         val defaultAlarm = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
         val defaultNotification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val candidates = listOfNotNull(savedUri, defaultAlarm, defaultNotification).distinct()
-
         for (soundUri in candidates) {
-            var media: MediaPlayer? = null
-            try {
-                media = MediaPlayer()
-                media.setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                media.isLooping = true
-                media.setVolume(1f, 1f)
-                media.setDataSource(this, soundUri)
-                media.prepare()
-                media.start()
-                player = media
-                return
-            } catch (_: Exception) {
-                try {
-                    media?.release()
-                } catch (_: Exception) {
-                }
-            }
+            if (tryPlaySound(null, soundUri)) return
         }
+    }
+
+    private fun tryPlaySound(filePath: String?, soundUri: Uri?): Boolean {
+        var media: MediaPlayer? = null
+        return try {
+            media = MediaPlayer()
+            media.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            media.isLooping = true
+            media.setVolume(1f, 1f)
+            if (filePath != null) media.setDataSource(filePath)
+            else if (soundUri != null) media.setDataSource(this, soundUri)
+            else throw IllegalArgumentException("No alarm sound")
+            media.prepare()
+            media.start()
+            player = media
+            true
+        } catch (_: Exception) {
+            try {
+                media?.release()
+            } catch (_: Exception) {
+            }
+            false
+        }
+    }
+
+    private fun activateVolumeKeyStopper() {
+        if (Build.VERSION.SDK_INT < 21) return
+        releaseMediaSession()
+        try {
+            val session = MediaSession(this, "MutawerAlarm")
+            session.setFlags(
+                MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+                    MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+            session.setCallback(object : MediaSession.Callback() {
+                override fun onMediaButtonEvent(mediaButtonIntent: Intent?): Boolean {
+                    @Suppress("DEPRECATION")
+                    val keyEvent = mediaButtonIntent?.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
+                    if (keyEvent != null &&
+                        keyEvent.action == KeyEvent.ACTION_DOWN &&
+                        (keyEvent.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+                            keyEvent.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+                            keyEvent.keyCode == KeyEvent.KEYCODE_VOLUME_MUTE)
+                    ) {
+                        stopAlarm()
+                        return true
+                    }
+                    return super.onMediaButtonEvent(mediaButtonIntent)
+                }
+            })
+            session.setPlaybackToRemote(object : VolumeProvider(
+                VolumeProvider.VOLUME_CONTROL_RELATIVE, 100, 50
+            ) {
+                override fun onAdjustVolume(direction: Int) {
+                    stopAlarm()
+                }
+            })
+            session.setPlaybackState(
+                PlaybackState.Builder()
+                    .setActions(
+                        PlaybackState.ACTION_PLAY or
+                            PlaybackState.ACTION_PAUSE or
+                            PlaybackState.ACTION_STOP
+                    )
+                    .setState(PlaybackState.STATE_PLAYING, 0L, 1f)
+                    .build()
+            )
+            session.isActive = true
+            mediaSession = session
+        } catch (_: Exception) {
+            releaseMediaSession()
+        }
+    }
+
+    private fun releaseMediaSession() {
+        try {
+            mediaSession?.isActive = false
+            mediaSession?.release()
+        } catch (_: Exception) {
+        }
+        mediaSession = null
     }
 
     private fun stopAlarm() {
         releasePlayer()
+        releaseMediaSession()
         try {
             if (wakeLock?.isHeld == true) wakeLock?.release()
         } catch (_: Exception) {
@@ -193,6 +269,7 @@ class AlarmService : Service() {
 
     override fun onDestroy() {
         releasePlayer()
+        releaseMediaSession()
         try {
             if (wakeLock?.isHeld == true) wakeLock?.release()
         } catch (_: Exception) {
