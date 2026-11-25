@@ -87,7 +87,6 @@ class AlarmService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= 26) {
             Notification.Builder(this, CHANNEL_ID)
         } else {
-            @Suppress("DEPRECATION")
             Notification.Builder(this)
         }
 
@@ -125,6 +124,7 @@ class AlarmService : Service() {
         try {
             val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: return
             val media = MediaPlayer()
             media.setAudioAttributes(
                 AudioAttributes.Builder()
