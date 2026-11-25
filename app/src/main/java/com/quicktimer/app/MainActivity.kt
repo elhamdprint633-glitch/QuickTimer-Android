@@ -14,6 +14,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -43,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var display: TextView
     private lateinit var status: TextView
     private lateinit var startButton: TextView
+    private lateinit var soundButton: TextView
     private lateinit var pauseButton: TextView
     private lateinit var stopAlarmButton: TextView
     private lateinit var ring: ProgressRing
@@ -188,8 +190,15 @@ class MainActivity : Activity() {
         status.setPadding(0, dp(5), 0, dp(4))
         timerCard.addView(status, matchWrap())
         root.addView(timerCard, matchWrap())
-        addGap(root, 22)
+        addGap(root, 14)
 
+        startButton = actionButton("ابدأ المؤقت", Color.rgb(38, 128, 235), Color.WHITE)
+        startButton.setOnClickListener { startTimer() }
+        root.addView(startButton, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(56)
+        ))
+
+        addGap(root, 18)
         root.addView(textView("اضبط الوقت", 17f, primaryText, true), matchWrap())
         addGap(root, 10)
 
@@ -226,12 +235,14 @@ class MainActivity : Activity() {
             }
             root.addView(row, matchWrap())
         }
-        addGap(root, 18)
-
-        startButton = actionButton("ابدأ المؤقت", Color.rgb(38, 128, 235), Color.WHITE)
-        startButton.setOnClickListener { startTimer() }
-        root.addView(startButton, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(56)
+        addGap(root, 14)
+        soundButton = actionButton("🔔 صوت الجرس: ${selectedSoundTitle()}", card, primaryText).apply {
+            textSize = 13f
+            maxLines = 2
+            setOnClickListener { chooseAlarmSound() }
+        }
+        root.addView(soundButton, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(54)
         ))
 
         addGap(root, 9)
@@ -380,7 +391,10 @@ class MainActivity : Activity() {
     private fun resetTimer() {
         cancelAlarm()
         stopService(Intent(this, AlarmService::class.java))
-        prefs.edit().clear().putBoolean("darkMode", darkMode).apply()
+        val savedSound = prefs.getString("alarmSoundUri", null)
+        val editor = prefs.edit().clear().putBoolean("darkMode", darkMode)
+        if (savedSound != null) editor.putString("alarmSoundUri", savedSound)
+        editor.apply()
         remainingMs = 0L
         totalDurationMs = 0L
         hoursInput.setText("")
@@ -476,6 +490,53 @@ class MainActivity : Activity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5)
+        }
+    }
+
+    private fun chooseAlarmSound() {
+        val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        val savedUri = prefs.getString("alarmSoundUri", null)?.let { Uri.parse(it) }
+        val pickerIntent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "اختيار صوت الجرس")
+            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, savedUri ?: defaultUri)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, defaultUri)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+        }
+        try {
+            startActivityForResult(pickerIntent, REQUEST_ALARM_SOUND)
+        } catch (_: Exception) {
+            Toast.makeText(this, "تعذر فتح قائمة أصوات الجهاز", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_ALARM_SOUND && resultCode == RESULT_OK) {
+            val pickedUri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            prefs.edit().putString("alarmSoundUri", pickedUri?.toString()).apply()
+            updateSoundButtonLabel()
+            Toast.makeText(this, "تم تغيير صوت الجرس", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun selectedSoundTitle(): String {
+        val storedUri = prefs.getString("alarmSoundUri", null)
+        val uri = storedUri?.let { Uri.parse(it) }
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        return try {
+            if (uri == null) "صوت الجهاز الافتراضي"
+            else RingtoneManager.getRingtone(this, uri)?.getTitle(this) ?: "صوت الجهاز الافتراضي"
+        } catch (_: Exception) {
+            "صوت الجهاز الافتراضي"
+        }
+    }
+
+    private fun updateSoundButtonLabel() {
+        if (::soundButton.isInitialized) {
+            soundButton.text = "🔔 صوت الجرس: ${selectedSoundTitle()}"
         }
     }
 
@@ -596,6 +657,10 @@ class MainActivity : Activity() {
 
     private fun mutedText() = mutedColor()
     private fun primaryText() = textColor()
+
+    private companion object {
+        const val REQUEST_ALARM_SOUND = 601
+    }
 
     private class ProgressRing(context: Context) : View(context) {
         var progress: Float = 1f
