@@ -434,7 +434,7 @@ class MainActivity : Activity() {
             .commit()
         remainingMs = 0L
         totalDurationMs = 0L
-        startService(Intent(this, AlarmService::class.java).setAction(AlarmService.ACTION_STOP))
+        stopService(Intent(this, AlarmService::class.java))
         updateUi()
     }
 
