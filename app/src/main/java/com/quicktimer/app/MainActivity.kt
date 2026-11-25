@@ -16,11 +16,10 @@ import android.widget.*
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
+import android.app.Activity
 import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("timer", Context.MODE_PRIVATE) }
     private lateinit var hours: EditText
     private lateinit var minutes: EditText
@@ -190,7 +189,7 @@ class MainActivity : AppCompatActivity() {
         running = false
         prefs.edit().putBoolean("running", false).putLong("endAt", 0L).apply()
         display.text = format(remaining)
-        startButton.isEnabled = false
+        startButton.isEnabled = true
         status.text = "المؤقت متوقف مؤقتًا"
     }
 
@@ -247,7 +246,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 5)
         }
     }
     private fun format(ms: Long): String {
