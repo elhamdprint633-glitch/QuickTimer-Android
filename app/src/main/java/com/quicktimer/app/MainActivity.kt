@@ -15,7 +15,6 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.RingtoneManager
-import android.media.RingtoneManager
 import android.net.Uri
 import android.view.KeyEvent
 import android.os.Build
@@ -570,8 +569,8 @@ class MainActivity : Activity() {
             }
             prefs.edit()
                 .putString("alarmSoundPath", targetFile.absolutePath)
+                .putString("alarmSoundUri", pickedUri.toString())
                 .putString("alarmSoundTitle", title)
-                .remove("alarmSoundUri")
                 .apply()
             updateSoundButtonLabel()
             Toast.makeText(this, "تم حفظ صوت الجرس: $title", Toast.LENGTH_SHORT).show()
