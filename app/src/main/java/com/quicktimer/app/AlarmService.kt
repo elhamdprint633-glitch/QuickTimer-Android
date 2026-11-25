@@ -224,14 +224,17 @@ class AlarmService : Service() {
     }
 
     private fun stopAlarm(startId: Int? = null) {
-        getSharedPreferences("timer", Context.MODE_PRIVATE).edit()
-            .putBoolean("alarmStopRequested", true)
-            .putBoolean("ringing", false)
-            .putBoolean("running", false)
-            .putLong("endAt", 0L)
-            .putLong("remaining", 0L)
-            .putLong("total", 0L)
-            .commit()
+        val timerPrefs = getSharedPreferences("timer", Context.MODE_PRIVATE)
+        if (timerPrefs.getBoolean("ringing", false)) {
+            timerPrefs.edit()
+                .putBoolean("alarmStopRequested", true)
+                .putBoolean("ringing", false)
+                .putBoolean("running", false)
+                .putLong("endAt", 0L)
+                .putLong("remaining", 0L)
+                .putLong("total", 0L)
+                .commit()
+        }
 
         releasePlayer()
         releaseMediaSession()
