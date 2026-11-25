@@ -15,3 +15,6 @@
 
 ## Build
 يتم بناء APK عبر GitHub Actions عند كل تحديث لفرع main. ملف APK يظهر ضمن Artifacts في صفحة Actions.
+
+
+Build verification branch: automated Android APK build.
