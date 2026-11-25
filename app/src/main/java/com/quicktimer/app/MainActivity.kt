@@ -377,6 +377,7 @@ class MainActivity : Activity() {
         prefs.edit()
             .putBoolean("running", true)
             .putBoolean("ringing", false)
+            .putBoolean("alarmStopRequested", false)
             .putLong("endAt", endAt)
             .putLong("remaining", remainingMs)
             .putLong("total", totalDurationMs.coerceAtLeast(remainingMs))
@@ -422,6 +423,17 @@ class MainActivity : Activity() {
     }
 
     private fun stopAlarm() {
+        cancelAlarm()
+        prefs.edit()
+            .putBoolean("alarmStopRequested", true)
+            .putBoolean("ringing", false)
+            .putBoolean("running", false)
+            .putLong("endAt", 0L)
+            .putLong("remaining", 0L)
+            .putLong("total", 0L)
+            .commit()
+        remainingMs = 0L
+        totalDurationMs = 0L
         startService(Intent(this, AlarmService::class.java).setAction(AlarmService.ACTION_STOP))
         updateUi()
     }
@@ -457,13 +469,17 @@ class MainActivity : Activity() {
     }
 
     private fun triggerAlarm() {
-        if (!prefs.getBoolean("ringing", false)) {
+        val shouldStartAlarm = prefs.getBoolean("running", false) &&
+            !prefs.getBoolean("ringing", false) &&
+            !prefs.getBoolean("alarmStopRequested", false)
+        if (shouldStartAlarm) {
+            cancelAlarm()
             prefs.edit()
                 .putBoolean("running", false)
                 .putBoolean("ringing", true)
                 .putLong("endAt", 0L)
                 .putLong("remaining", 0L)
-                .apply()
+                .commit()
             val serviceIntent = Intent(this, AlarmService::class.java)
             try {
                 if (Build.VERSION.SDK_INT >= 26) startForegroundService(serviceIntent)
