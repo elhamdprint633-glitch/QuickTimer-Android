@@ -8,12 +8,17 @@ import android.os.Build
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val prefs = context.getSharedPreferences("timer", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("running", false) ||
+            prefs.getBoolean("ringing", false) ||
+            prefs.getBoolean("alarmStopRequested", false)
+        ) return
+
         prefs.edit()
             .putBoolean("running", false)
             .putBoolean("ringing", true)
             .putLong("endAt", 0L)
             .putLong("remaining", 0L)
-            .apply()
+            .commit()
 
         val serviceIntent = Intent(context, AlarmService::class.java)
         try {
