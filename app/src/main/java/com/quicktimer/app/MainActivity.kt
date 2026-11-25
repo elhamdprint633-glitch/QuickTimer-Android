@@ -15,7 +15,9 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.RingtoneManager
+import android.media.RingtoneManager
 import android.net.Uri
+import android.view.KeyEvent
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -32,6 +34,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 
 class MainActivity : Activity() {
@@ -74,6 +78,17 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::display.isInitialized) updateCountdown()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val isVolumeKey = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_MUTE
+        if (isVolumeKey && prefs.getBoolean("ringing", false)) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) stopAlarm()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onDestroy() {
@@ -391,9 +406,13 @@ class MainActivity : Activity() {
     private fun resetTimer() {
         cancelAlarm()
         stopService(Intent(this, AlarmService::class.java))
-        val savedSound = prefs.getString("alarmSoundUri", null)
+        val savedSoundUri = prefs.getString("alarmSoundUri", null)
+        val savedSoundPath = prefs.getString("alarmSoundPath", null)
+        val savedSoundTitle = prefs.getString("alarmSoundTitle", null)
         val editor = prefs.edit().clear().putBoolean("darkMode", darkMode)
-        if (savedSound != null) editor.putString("alarmSoundUri", savedSound)
+        if (savedSoundUri != null) editor.putString("alarmSoundUri", savedSoundUri)
+        if (savedSoundPath != null) editor.putString("alarmSoundPath", savedSoundPath)
+        if (savedSoundTitle != null) editor.putString("alarmSoundTitle", savedSoundTitle)
         editor.apply()
         remainingMs = 0L
         totalDurationMs = 0L
@@ -514,15 +533,55 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_ALARM_SOUND && resultCode == RESULT_OK) {
-            val pickedUri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            prefs.edit().putString("alarmSoundUri", pickedUri?.toString()).apply()
+        if (requestCode != REQUEST_ALARM_SOUND || resultCode != RESULT_OK) return
+
+        val pickedUri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        if (pickedUri == null || pickedUri == defaultUri) {
+            File(filesDir, ALARM_SOUND_FILE).delete()
+            prefs.edit()
+                .remove("alarmSoundPath")
+                .remove("alarmSoundUri")
+                .putString("alarmSoundTitle", "صوت المنبه الافتراضي")
+                .apply()
             updateSoundButtonLabel()
-            Toast.makeText(this, "تم تغيير صوت الجرس", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "تم اختيار صوت المنبه الافتراضي", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            val tempFile = File(filesDir, "$ALARM_SOUND_FILE.tmp")
+            val targetFile = File(filesDir, ALARM_SOUND_FILE)
+            val input = contentResolver.openInputStream(pickedUri)
+                ?: throw IllegalStateException("تعذر قراءة ملف النغمة")
+            input.use { source ->
+                FileOutputStream(tempFile).use { destination -> source.copyTo(destination) }
+            }
+            if (targetFile.exists()) targetFile.delete()
+            if (!tempFile.renameTo(targetFile)) {
+                tempFile.copyTo(targetFile, overwrite = true)
+                tempFile.delete()
+            }
+
+            val title = try {
+                RingtoneManager.getRingtone(this, pickedUri)?.getTitle(this) ?: "نغمة مخصصة"
+            } catch (_: Exception) {
+                "نغمة مخصصة"
+            }
+            prefs.edit()
+                .putString("alarmSoundPath", targetFile.absolutePath)
+                .putString("alarmSoundTitle", title)
+                .remove("alarmSoundUri")
+                .apply()
+            updateSoundButtonLabel()
+            Toast.makeText(this, "تم حفظ صوت الجرس: $title", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "لم أتمكن من حفظ النغمة المختارة. جرّب نغمة أخرى من أصوات الجهاز.", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun selectedSoundTitle(): String {
+        prefs.getString("alarmSoundTitle", null)?.let { return it }
         val storedUri = prefs.getString("alarmSoundUri", null)
         val uri = storedUri?.let { Uri.parse(it) }
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -660,6 +719,7 @@ class MainActivity : Activity() {
 
     private companion object {
         const val REQUEST_ALARM_SOUND = 601
+        const val ALARM_SOUND_FILE = "mutawer_custom_alarm_tone"
     }
 
     private class ProgressRing(context: Context) : View(context) {
