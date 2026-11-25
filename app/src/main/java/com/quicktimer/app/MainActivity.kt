@@ -83,7 +83,6 @@ class MainActivity : Activity() {
         val bg = if (darkMode) Color.rgb(10, 16, 31) else Color.rgb(244, 247, 252)
         window.statusBarColor = bg
         window.navigationBarColor = bg
-        @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility =
             if (darkMode) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
     }
@@ -141,6 +140,8 @@ class MainActivity : Activity() {
             darkMode = !darkMode
             prefs.edit().putBoolean("darkMode", darkMode).apply()
             buildUi()
+            if (remainingMs > 0L) setFields(remainingMs)
+            prefs.edit().putLong("remaining", remainingMs).putLong("total", totalDurationMs).apply()
             updateUi()
         }
         header.addView(themeButton, LinearLayout.LayoutParams(dp(52), dp(48)))
@@ -362,6 +363,10 @@ class MainActivity : Activity() {
     private fun pauseTimer() {
         if (!prefs.getBoolean("running", false)) return
         remainingMs = (prefs.getLong("endAt", 0L) - System.currentTimeMillis()).coerceAtLeast(0L)
+        if (remainingMs <= 0L) {
+            triggerAlarm()
+            return
+        }
         cancelAlarm()
         prefs.edit()
             .putBoolean("running", false)
