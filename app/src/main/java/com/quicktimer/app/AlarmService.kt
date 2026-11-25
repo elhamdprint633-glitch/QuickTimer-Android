@@ -15,7 +15,6 @@ import android.media.VolumeProvider
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.view.KeyEvent
 import java.io.File
 import android.net.Uri
 import android.content.Context
@@ -182,22 +181,6 @@ class AlarmService : Service() {
                 MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
                     MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
             )
-            session.setCallback(object : MediaSession.Callback() {
-                override fun onMediaButtonEvent(mediaButtonIntent: Intent?): Boolean {
-                    @Suppress("DEPRECATION")
-                    val keyEvent = mediaButtonIntent?.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
-                    if (keyEvent != null &&
-                        keyEvent.action == KeyEvent.ACTION_DOWN &&
-                        (keyEvent.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
-                            keyEvent.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
-                            keyEvent.keyCode == KeyEvent.KEYCODE_VOLUME_MUTE)
-                    ) {
-                        stopAlarm()
-                        return true
-                    }
-                    return super.onMediaButtonEvent(mediaButtonIntent)
-                }
-            })
             session.setPlaybackToRemote(object : VolumeProvider(
                 VolumeProvider.VOLUME_CONTROL_RELATIVE, 100, 50
             ) {
