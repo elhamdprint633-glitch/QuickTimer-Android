@@ -111,7 +111,7 @@ class MainActivity : Activity() {
                 else intArrayOf(Color.rgb(246, 249, 255), Color.rgb(231, 239, 250))
             )
         }
-        scroll.addView(root, ScrollView.LayoutParams(
+        scroll.addView(root, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
