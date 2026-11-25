@@ -16,3 +16,6 @@
 
 ## Build
 يتم بناء APK عبر GitHub Actions عند كل تحديث لفرع main. ملف APK يظهر ضمن Artifacts في صفحة Actions.
+
+
+Alarm controls: selected tones are copied into app-private storage; hardware volume keys stop the active alarm.
