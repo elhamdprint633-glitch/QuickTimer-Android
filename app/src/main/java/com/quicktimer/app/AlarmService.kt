@@ -32,16 +32,25 @@ class AlarmService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            stopAlarm()
+            stopAlarm(startId)
             return START_NOT_STICKY
         }
 
-        getSharedPreferences("timer", Context.MODE_PRIVATE).edit()
-            .putBoolean("running", false)
-            .putBoolean("ringing", true)
-            .putLong("endAt", 0L)
-            .putLong("remaining", 0L)
-            .apply()
+        val timerPrefs = getSharedPreferences("timer", Context.MODE_PRIVATE)
+        if (intent == null ||
+            !timerPrefs.getBoolean("ringing", false) ||
+            timerPrefs.getBoolean("alarmStopRequested", false)
+        ) {
+            releasePlayer()
+            releaseMediaSession()
+            if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE)
+            else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
 
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= 29) {
@@ -56,7 +65,7 @@ class AlarmService : Service() {
 
         acquireWakeLock()
         startAlarmSound()
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun createNotificationChannel() {
@@ -214,7 +223,16 @@ class AlarmService : Service() {
         mediaSession = null
     }
 
-    private fun stopAlarm() {
+    private fun stopAlarm(startId: Int? = null) {
+        getSharedPreferences("timer", Context.MODE_PRIVATE).edit()
+            .putBoolean("alarmStopRequested", true)
+            .putBoolean("ringing", false)
+            .putBoolean("running", false)
+            .putLong("endAt", 0L)
+            .putLong("remaining", 0L)
+            .putLong("total", 0L)
+            .commit()
+
         releasePlayer()
         releaseMediaSession()
         try {
@@ -222,20 +240,13 @@ class AlarmService : Service() {
         } catch (_: Exception) {
         }
         wakeLock = null
-        getSharedPreferences("timer", Context.MODE_PRIVATE).edit()
-            .putBoolean("ringing", false)
-            .putBoolean("running", false)
-            .putLong("endAt", 0L)
-            .putLong("remaining", 0L)
-            .putLong("total", 0L)
-            .apply()
 
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE)
         else {
             @Suppress("DEPRECATION")
             stopForeground(true)
         }
-        stopSelf()
+        if (startId != null) stopSelfResult(startId) else stopSelf()
     }
 
     private fun releasePlayer() {
